@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>小小 · 记忆脑图 / MEMORY CORTEX</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="app">
+
+  <canvas id="gl"></canvas>
+  <canvas id="overlay2d"></canvas>
+
+  <div id="labels" aria-hidden="true"></div>
+
+  <div class="fx" id="fx-scan"></div>
+  <div class="fx" id="fx-vignette"></div>
+  <div class="fx" id="fx-grain"></div>
+  <div class="fx" id="fx-aberration"></div>
+
+  <!-- ============ 顶部品牌 ============ -->
+  <header id="brand" class="hud">
+    <div class="brand-mark">
+      <svg viewBox="0 0 48 48" width="40" height="40">
+        <defs><linearGradient id="mg" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stop-color="#8fe6ff"/><stop offset="1" stop-color="#ffcc66"/>
+        </linearGradient></defs>
+        <path d="M24 3 L42 13 L42 35 L24 45 L6 35 L6 13 Z" fill="none" stroke="url(#mg)" stroke-width="1.2" opacity=".95"/>
+        <path d="M24 11 L34 17 L34 31 L24 37 L14 31 L14 17 Z" fill="none" stroke="#6fe3ff" stroke-width=".7" opacity=".55"/>
+        <circle cx="24" cy="24" r="3.2" fill="#ffe9b8"/>
+        <circle cx="24" cy="24" r="6.5" fill="none" stroke="#ffcc66" stroke-width=".6" opacity=".6"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <div class="kicker"><i></i>MEMORY CORTEX <span class="sep">/</span> 记忆皮层 <span class="ver">v2.4</span></div>
+      <h1>小小<span class="dot">·</span>记忆脑图</h1>
+      <div class="brand-sub">多层记忆架构 · 神经图谱 · 实时认知流 <span class="tag">PERSONA MEMORY GRAPH</span></div>
+      <div class="brand-stats">
+        <span><em>节点</em><b id="st-nodes">0</b></span>
+        <span><em>连线</em><b id="st-edges">0</b></span>
+        <span><em>粒子</em><b id="st-particles">0</b></span>
+        <span><em>记忆</em><b id="st-mem">0</b><i class="live-dot"></i></span>
+      </div>
+    </div>
+    <div class="brand-right">
+      <div class="src">SOURCE <b>bot.db</b> · 只读镜像</div>
+      <div class="clock"><b id="clock">00:00:00</b><em>UTC+08</em></div>
+    </div>
+  </header>
+
+  <!-- ============ 左：皮层导航 ============ -->
+  <aside id="legend" class="hud panel">
+    <div class="panel-head">
+      <span class="ph-cn">皮层导航</span><span class="ph-en">CORTICAL NAV</span>
+      <span class="ro live" id="nav-sync">● SYNC</span>
+    </div>
+    <div class="nav-wrap">
+      <canvas id="minimap"></canvas>
+      <div class="nav-tip" id="nav-tip"></div>
+    </div>
+    <div class="nav-foot">
+      <span>点区域 → 飞入并隔离 · 再点退出</span>
+      <b id="nav-reset">复位</b>
+    </div>
+
+    <div class="comp">
+      <div class="comp-head">
+        <span class="ph-cn">记忆构成</span>
+        <em id="comp-total">34 条</em>
+      </div>
+      <div class="comp-bar" id="comp-bar"></div>
+      <div class="comp-legend" id="comp-legend"></div>
+    </div>
+  </aside>
+
+  <!-- ============ 右：人格 + 认知流 ============ -->
+  <aside id="side" class="hud">
+    <section class="panel persona" id="persona">
+      <div class="panel-head">
+        <span class="ph-cn">人格内核</span><span class="ph-en">PERSONA CORE</span>
+        <span class="ro">READ-ONLY</span>
+      </div>
+      <div class="p-main">
+        <div class="p-id">
+          <div class="p-name">小小</div>
+          <div class="p-alias">人格档案 · 知夏 / 22 / 学姐</div>
+          <div class="p-stage"><span id="p-stage">依赖</span><em>STAGE</em></div>
+        </div>
+        <div class="p-ring">
+          <svg viewBox="0 0 100 100" width="86" height="86">
+            <circle cx="50" cy="50" r="41" fill="none" stroke="rgba(120,180,255,.14)" stroke-width="5"/>
+            <circle id="intimacy-arc" cx="50" cy="50" r="41" fill="none" stroke="#ffcc66" stroke-width="5"
+                    stroke-linecap="round" transform="rotate(-90 50 50)" stroke-dasharray="258" stroke-dashoffset="258"/>
+          </svg>
+          <div class="p-ring-val"><b id="p-intimacy">0</b><em>亲密</em></div>
+        </div>
+      </div>
+
+      <div class="p-pad" id="p-pad">
+        <div class="pad-row"><label>愉悦</label><div class="track"><i id="bar-pleasure"></i></div><b id="v-pleasure">0.00</b></div>
+        <div class="pad-row"><label>唤醒</label><div class="track"><i id="bar-arousal"></i></div><b id="v-arousal">0.00</b></div>
+        <div class="pad-row"><label>支配</label><div class="track"><i id="bar-dominance"></i></div><b id="v-dominance">0.00</b></div>
+      </div>
+
+      <div class="p-energy">
+        <div class="e-head"><span>能量 ENERGY</span><b id="v-energy">0%</b></div>
+        <div class="e-track"><i id="bar-energy"></i></div>
+        <div class="e-note" id="e-note">低电量 · 有点困了</div>
+      </div>
+
+      <div class="p-traits">
+        <div class="t-head"><span>性格特质 TRAITS</span><em>5 轴</em></div>
+        <svg id="radar" viewBox="0 0 200 150" preserveAspectRatio="xMidYMid meet"></svg>
+      </div>
+    </section>
+
+    <section class="panel stream" id="stream">
+      <div class="panel-head">
+        <span class="ph-cn">认知流</span><span class="ph-en">COGNITIVE STREAM</span>
+        <span class="ro live">● LIVE</span>
+      </div>
+      <div class="st-list" id="st-list"></div>
+    </section>
+  </aside>
+
+  <!-- ============ 底部 dock ============ -->
+  <footer id="dock" class="hud">
+    <div class="dock-tl">
+      <div class="tl-head">
+        <span>过去 48 小时 · MEMORY ACTIVITY</span>
+        <em id="tl-now">2026-10-29 21:04</em>
+      </div>
+      <div class="tl" id="timeline">
+        <div class="tl-bars" id="tl-bars"></div>
+        <div class="tl-events" id="tl-events"></div>
+        <div class="tl-playhead" id="tl-playhead"></div>
+        <div class="tl-ticks" id="tl-ticks"></div>
+      </div>
+    </div>
+
+    <div class="dock-ctl">
+      <div class="grp">
+        <em>视角</em>
+        <button class="btn" id="btn-rotate" data-on="1" title="空格"><i></i>自动巡航</button>
+        <button class="btn sm" id="btn-top">俯视</button>
+        <button class="btn sm" id="btn-flat">平视</button>
+        <button class="btn sm" id="btn-reset">复位</button>
+      </div>
+
+      <div class="grp">
+        <em>显示</em>
+        <button class="chip on" id="tg-labels" data-on="1">标签</button>
+        <button class="chip on" id="tg-edges" data-on="1">连线</button>
+        <button class="chip on" id="tg-glow" data-on="1">泛光</button>
+        <button class="chip on" id="tg-dust" data-on="1">粒子</button>
+      </div>
+
+      <div class="grp">
+        <em>质量</em>
+        <div class="seg" id="seg-quality">
+          <button data-q="1" class="on">高</button>
+          <button data-q="0.68">中</button>
+          <button data-q="0.4">低</button>
+        </div>
+      </div>
+
+      <div class="grp grow">
+        <em>检索</em>
+        <input id="q" class="inp" placeholder="输入记忆 / 关键词，回车搜索" autocomplete="off" />
+        <b id="q-count" class="qcount"></b>
+      </div>
+
+      <div class="grp">
+        <em>时间</em>
+        <b id="tcur" class="tcur">现在</b>
+        <button class="chip" id="btn-replay">回放</button>
+      </div>
+
+      <div class="grp">
+        <button class="btn sm" id="btn-recall">回忆回放</button>
+        <button class="btn sm" id="btn-shot">导出画面</button>
+        <button class="btn sm" id="btn-full">全屏</button>
+      </div>
+
+      <div class="dock-right">
+        <div class="stat"><em>FPS</em><b id="fps">60</b></div>
+        <div class="stat"><em>召回</em><b id="st-recall">0</b></div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ============ 记忆卡片 ============ -->
+  <div id="card" class="panel">
+    <div class="c-head">
+      <span class="c-kind" id="c-kind">EVENT</span>
+      <span class="c-id" id="c-id">#038</span>
+      <span class="c-close" id="c-close">✕</span>
+    </div>
+    <div class="c-text" id="c-text"></div>
+    <div class="c-meta" id="c-meta"></div>
+    <div class="c-bar"><i id="c-bar-fill"></i></div>
+    <div class="c-foot"><span id="c-foot-l">长期记忆库</span><span id="c-foot-r">WEIGHT</span></div>
+  </div>
+
+  <!-- ============ 准星 ============ -->
+  <div id="reticle"><span class="rt-tl"></span><span class="rt-tr"></span><span class="rt-bl"></span><span class="rt-br"></span><span class="rt-dot"></span></div>
+
+  <!-- ============ 启动 ============ -->
+  <div id="boot">
+    <div class="boot-inner">
+      <div class="boot-line"><span class="bl-k">[BOOT]</span> 载入人格内核 persona.brain … <b>OK</b></div>
+      <div class="boot-line"><span class="bl-k">[BOOT]</span> 挂载记忆皮层 34 条 / 关键词 62 个 … <b>OK</b></div>
+      <div class="boot-line"><span class="bl-k">[BOOT]</span> 建立神经图谱 1,286 节点 / 3,242 连线 … <b>OK</b></div>
+      <div class="boot-line"><span class="bl-k">[BOOT]</span> 校准情绪 PAD / 亲密度 82.5 … <b>OK</b></div>
+      <div class="boot-bar"><i></i></div>
+      <div class="boot-title">小小 · 记忆脑图</div>
+      <div class="boot-sub">她记得的，比你以为的多。</div>
+    </div>
+  </div>
+
+  <div id="err"></div>
+</div>
+
+<script src="js/data.real.js"></script>
+<script>if(!window.__REAL){document.write('<script src="js/data.demo.js"><\/script>');}</script>
+<script src="js/gl.js"></script>
+<script src="js/data.js"></script>
+<script src="js/scene.js"></script>
+<script src="js/hud.js"></script>
+<script src="js/cinematic.js"></script>
+<script src="js/main.js"></script>
+<script src="js/live.js"></script>
+</body>
+</html>

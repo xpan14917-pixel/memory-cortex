@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memory-cortex"
+version = "0.1.0"
+description = "会遗忘的记忆引擎：遗忘曲线 + 语义分区 + token 预算召回，附 3D 脑图可视化"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "lusong" }]
+keywords = ["llm", "agent-memory", "forgetting-curve", "spaced-repetition", "sqlite", "chatbot"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = []
+
+[project.scripts]
+memory-cortex = "memory_brain.cli:main"
+
+[tool.setuptools]
+packages = ["memory_brain"]
+
+[project.urls]
+Homepage = "https://github.com/lusong/memory-cortex"
+Issues = "https://github.com/lusong/memory-cortex/issues"

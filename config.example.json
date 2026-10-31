@@ -1,0 +1,88 @@
+{
+  "qq": {
+    "self_id": 0,
+    "allowed_users": [],
+    "admin_id": 0
+  },
+  "onebot": {
+    "api_base": "http://127.0.0.1:3000",
+    "token": "",
+    "listen_host": "127.0.0.1",
+    "listen_port": 8080,
+    "path": "/onebot"
+  },
+  "llm": {
+    "base_url": "https://api.deepseek.com",
+    "model": "deepseek-chat",
+    "api_key": "",
+    "temperature": 0.95,
+    "max_tokens": 400,
+    "timeout": 60,
+    "reflect_max_tokens": 600
+  },
+  "bot": {
+    "name": "知夏",
+    "max_bubbles": 3,
+    "memory_top_k": 6,
+    "history_messages": 10,
+    "max_prompt_chars": 6000,
+    "anti_repeat": true,
+    "repeat_threshold": 0.6
+  },
+  "memory": {
+    "top_k": 6,
+    "budget_tokens": 320,
+    "min_retention": 0.06,
+    "gamma": 0.9,
+    "review_boost": 0.25,
+    "archive_min_retention": 0.05,
+    "archive_min_days": 90,
+    "profile_top_n": 10,
+    "fallback_top": 2,
+    "dedupe_ratio": 0.6,
+    "brainmap_enabled": true,
+    "brainmap_budget_tokens": 60
+  },
+  "humanize": {
+    "min_delay": 0.6,
+    "per_char": 0.045,
+    "per_char_jitter": 0.045,
+    "between_min": 0.7,
+    "between_max": 1.9,
+    "long_delay_prob": 0.1,
+    "long_delay_min": 20,
+    "long_delay_max": 60
+  },
+  "style": {
+    "enabled": true,
+    "terse_prob": 0.3,
+    "multi_prob": 0.2,
+    "tilde_strip_prob": 0.5
+  },
+  "proactive": {
+    "enabled": true,
+    "daily_cap": 10,
+    "quiet_start": "00:30",
+    "quiet_end": "08:30",
+    "min_gap_minutes": 8,
+    "idle_minutes": 20,
+    "unanswered_limit": 2,
+    "unanswered_cooldown_minutes": 180,
+    "base_prob_per_minute": 0.009,
+    "max_bubbles": 2,
+    "tick_seconds": 60
+  },
+  "growth": {
+    "diary_hour": 23
+  },
+  "inner_life": {
+    "enabled": true,
+    "idle_minutes": 30,
+    "min_gap_minutes": 25,
+    "max_per_day": 8,
+    "after_chat_prob": 0.3,
+    "proactive_use_thoughts": true,
+    "quiet_start": "00:30",
+    "quiet_end": "08:30"
+  }
+}
