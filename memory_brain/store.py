@@ -1,4 +1,4 @@
-﻿"""记忆存储：消息、记忆、档案、状态、日记、主动记录。
+"""记忆存储：消息、记忆、档案、状态、日记、主动记录。
 
 设计：每个线程一个连接（sqlite3 连接不跨线程共享），WAL 模式。
 """
@@ -36,7 +36,9 @@ CREATE TABLE IF NOT EXISTS memories(
   last_review REAL,
   region TEXT,
   source TEXT,
-  superseded_by INTEGER
+  superseded_by INTEGER,
+  embedding BLOB,
+  embed_model TEXT
 );
 
 CREATE TABLE IF NOT EXISTS profile(
@@ -128,6 +130,8 @@ class Store:
         ("region", "ALTER TABLE memories ADD COLUMN region TEXT"),
         ("source", "ALTER TABLE memories ADD COLUMN source TEXT"),
         ("superseded_by", "ALTER TABLE memories ADD COLUMN superseded_by INTEGER"),
+        ("embedding", "ALTER TABLE memories ADD COLUMN embedding BLOB"),
+        ("embed_model", "ALTER TABLE memories ADD COLUMN embed_model TEXT"),
     )
 
     def _migrate(self):
@@ -224,6 +228,20 @@ class Store:
         return r["c"]
 
     # ---------- 记忆 ----------
+    def _embed(self, text):
+        """按需生成向量；未启用或出错时返回 (None, None)，绝不影响写入。"""
+        try:
+            from . import vector
+            emb = vector.get_embedder()
+            if not emb.enabled:
+                return None, None
+            vecs = emb.embed([text])
+            if not vecs or not vecs[0]:
+                return None, None
+            return vector.pack(vecs[0]), getattr(emb, "name", "")
+        except Exception:  # noqa: BLE001
+            return None, None
+
     def add_memory(self, kind, content, keywords=None, weight=1.0, source=None):
         """写一条记忆。source 用来溯源，例如 "msg:1234" / "manual" / "diary"。"""
         content = (content or "").strip()
@@ -232,6 +250,7 @@ class Store:
         kws = keywords or sorted(tokenize(content))[:12]
         if isinstance(kws, (list, tuple, set)):
             kws = " ".join(str(k) for k in kws)
+        blob, model = self._embed(content)
 
         # 去重：已有记忆和这条高度重合时，合并而不是新增
         tok = tokenize(content)
@@ -248,22 +267,42 @@ class Store:
                     merged = len(content) > len(r["content"]) and content or r["content"]
                     new_weight = min(3.0, max(float(r["weight"]), float(weight)) + 0.2)
                     new_s = forgetting.stability(kind, new_weight, 0)
+                    mtok = tokenize(merged)
+                    mblob, mmodel = (blob, model) if merged == content else self._embed(merged)
                     self._exec(
                         "UPDATE memories SET content=?, keywords=?, weight=?, ts=?, "
-                        "stability=?, region=?, source=COALESCE(?, source) WHERE id=?",
+                        "stability=?, region=?, source=COALESCE(?, source), "
+                        "embedding=COALESCE(?, embedding), embed_model=COALESCE(?, embed_model) "
+                        "WHERE id=?",
                         (merged, kws, new_weight, time.time(), new_s,
-                         brainmap.classify(kind, merged, kws), source, r["id"]),
+                         brainmap.classify(kind, merged, mtok), source,
+                         mblob, mmodel, r["id"]),
                     )
                     return r["id"]
 
         cur = self._exec(
-            "INSERT INTO memories(ts, kind, content, keywords, weight, stability, region, source) "
-            "VALUES(?,?,?,?,?,?,?,?)",
+            "INSERT INTO memories(ts, kind, content, keywords, weight, stability, region, "
+            "source, embedding, embed_model) VALUES(?,?,?,?,?,?,?,?,?,?)",
             (time.time(), kind, content, kws, float(weight),
              forgetting.stability(kind, weight, 0),
-             brainmap.classify(kind, content, kws), source),
+             brainmap.classify(kind, content, kws), source, blob, model),
         )
         return cur.lastrowid
+
+    def backfill_embeddings(self, limit=5000):
+        """给还没有向量的旧记忆补向量（启用向量召回后跑一次）。"""
+        rows = self.conn().execute(
+            "SELECT id, content FROM memories WHERE embedding IS NULL LIMIT ?",
+            (int(limit),)).fetchall()
+        n = 0
+        for r in rows:
+            blob, model = self._embed(r["content"])
+            if blob is None:
+                continue
+            self._exec("UPDATE memories SET embedding=?, embed_model=? WHERE id=?",
+                       (blob, model, r["id"]))
+            n += 1
+        return n
 
     def supersede(self, old_id, new_id=None):
         """标记旧记忆已被更正：不再召回，但保留可查。"""

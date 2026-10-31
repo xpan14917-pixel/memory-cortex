@@ -41,7 +41,15 @@
     "fallback_top": 2,
     "dedupe_ratio": 0.6,
     "brainmap_enabled": true,
-    "brainmap_budget_tokens": 60
+    "brainmap_budget_tokens": 60,
+    "vector_enabled": false,
+    "vector_provider": "hash",
+    "vector_weight": 0.5,
+    "rrf_k": 60,
+    "vector_model": "",
+    "vector_base_url": "",
+    "vector_api_key_env": "OPENAI_API_KEY",
+    "vector_dim": 256
   },
   "humanize": {
     "min_delay": 0.6,

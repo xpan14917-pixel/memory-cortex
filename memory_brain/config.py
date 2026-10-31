@@ -33,6 +33,15 @@ DEFAULTS = {
     "fallback_top": 2,
     # 召回时合并近似重复（内容 Jaccard ≥ 该值只留分数最高的）
     "dedupe_ratio": 0.6,
+    # ---- 向量召回（默认关闭，未配置时行为与纯关键词一致）----
+    "vector_enabled": False,
+    "vector_provider": "hash",     # hash / ollama / openai
+    "vector_weight": 0.5,          # RRF 融合时向量通道的权重，0~1
+    "rrf_k": 60,                   # RRF 平滑常数
+    "vector_model": "",            # 例如 nomic-embed-text / text-embedding-3-small
+    "vector_base_url": "",         # 例如 http://127.0.0.1:11434
+    "vector_api_key_env": "OPENAI_API_KEY",
+    "vector_dim": 256,             # hash provider 的维度
 }
 
 _state = copy.deepcopy(DEFAULTS)

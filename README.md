@@ -145,6 +145,31 @@ docs/              架构说明、记忆模型说明
 
 ---
 
+## 向量召回（可选，默认关闭）
+
+关键词召回对「换说法」无能为例。内置了可插拔的向量通道：
+
+```bash
+# 零依赖，用字符哈希向量跑通链路（只适合演示/测试，语义能力有限）
+python tools/eval_recall.py --vector hash
+
+# 本地 Ollama（推荐；需要你自己装，Python 侧仍零依赖）
+ollama pull nomic-embed-text
+# config.json: "vector_enabled": true, "vector_provider": "ollama",
+#              "vector_model": "nomic-embed-text", "vector_base_url": "http://127.0.0.1:11434"
+
+# 或任何 OpenAI 兼容的 /embeddings（会出网）
+# "vector_provider": "openai", "vector_api_key_env": "OPENAI_API_KEY"
+```
+
+两路分数用 **RRF（Reciprocal Rank Fusion）** 融合：只看排名，不混用量纲。
+`vector_weight` 控制向量通道的权重（0 = 纯关键词，1 = 纯向量）。
+
+**现状说明（实测，不吹）**：`hash` provider 只捕捉字面相近，
+在 30 条评测集上 Recall@3 没有提升（0.733 → 0.733），
+说明真正解决「换说法」需要**语义 embedding 模型**，不是字面哈希。
+装上 Ollama 后跑同一份评测才能看到真实增益。
+
 ## 接入 QQ（可选）
 
 1. 装 [NapCat](https://github.com/NapNeko/NapCatQQ)，用**小号**登录；
@@ -195,7 +220,7 @@ docs/              架构说明、记忆模型说明
 - [x] 参数可配（`memory_brain.configure()`，`config.json` 的 `memory` 段）
 - [x] 召回评测集 + `eval_recall.py`（Recall@3 / MRR）
 - [x] 实时面板（本机 HTTP 轮询，`tools/panel_server.py`）
-- [ ] 向量召回（可选，接 embedding）
+- [x] 向量召回骨架（RRF 融合 + 可插拔 provider，默认关闭；真实增益待接语义模型验证）
 - [ ] 多用户（`user_id`）
 
 ## 许可

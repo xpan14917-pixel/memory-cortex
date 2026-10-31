@@ -1,14 +1,15 @@
-﻿"""召回：相关度 × 保持度 × 权重，受 token 预算约束。
+"""召回：关键词 × 向量（可选）→ RRF 融合 → 相关度 × 保持度 × 权重 → token 预算。
 
 设计取舍：
 - 分区/遗忘判错时只影响排序，不做硬过滤，避免把该想起的挡掉；
 - 前 3 条给全文，之后截断，总预算封顶，避免长记忆顶掉对话历史；
 - 没命中关键词时（fallback_top > 0）兜底塞几条高权重记忆，解决"换说法就失忆"；
-- 召回时合并近似重复（同一件事说两遍），只留分高的那条。
+- 召回时合并近似重复（同一件事说两遍），只留分高的那条；
+- 向量召回默认关闭；开启后用 RRF 只融合"排名"，不混用两路的分数量纲。
 """
 import time
 
-from . import config, forgetting
+from . import config, forgetting, vector
 from .text import tokenize
 
 REGION_BONUS = 0.6
@@ -16,7 +17,7 @@ MIN_SCORE = 0.25
 FULL_ROWS = 3
 CANDIDATE_LIMIT = 400
 SHORT_CHARS = 14
-MAX_TOKENS = 999999
+VECTOR_SCALE = 2.0
 
 
 def _relevance(m, q):
@@ -29,16 +30,83 @@ def _relevance(m, q):
     return overlap * 2.0 + substr * 0.3
 
 
+def _ranks(scores):
+    """把 {id: score} 按分降序转成 {id: rank}（0 起）。"""
+    ordered = sorted(scores.items(), key=lambda kv: kv[1], reverse=True)
+    return {mid: i for i, (mid, _) in enumerate(ordered)}
+
+
+def hybrid_relevance(rows, query, now=None):
+    """返回 {memory_id: 有效相关度}。
+
+    - 向量关闭 / 不可用：直接用关键词相关度（与旧版完全一致）。
+    - 向量开启：两路各自排名 → RRF 融合 → 归一化到"关键词命中一次"的量级。
+    """
+    q = tokenize(query)
+    kw = {}
+    for r in rows:
+        m = dict(r)
+        rel = _relevance(m, q)
+        if rel > 0:
+            kw[m["id"]] = rel
+
+    emb = vector.get_embedder()
+    if not emb.enabled:
+        return kw
+
+    qvec = None
+    try:
+        vecs = emb.embed([query])
+        if vecs:
+            qvec = vecs[0]
+    except Exception:  # noqa: BLE001  服务不可用时退回关键词
+        qvec = None
+    if not qvec:
+        return kw
+
+    sims = {}
+    for r in rows:
+        m = dict(r)
+        mv = vector.unpack(m.get("embedding"))
+        if not mv:
+            continue
+        sim = vector.cosine(qvec, mv)
+        if sim > 0.0:
+            sims[m["id"]] = sim
+    if not sims:
+        return kw
+
+    k = float(config.get("rrf_k", 60) or 60)
+    w = float(config.get("vector_weight", 0.5) or 0.0)
+    w = max(0.0, min(1.0, w))
+    kw_rank = _ranks(kw)
+    vec_rank = _ranks(sims)
+
+    fused = {}
+    for mid in set(kw_rank) | set(vec_rank):
+        s = 0.0
+        if mid in kw_rank:
+            s += (1.0 - w) / (k + kw_rank[mid])
+        if mid in vec_rank:
+            s += w / (k + vec_rank[mid])
+        fused[mid] = s
+
+    top = max(fused.values()) or 1.0
+    # 归一化后放大到 2.0：与"关键词命中一次"同量级，后面的 MIN_SCORE 照旧生效
+    return {mid: (v / top) * VECTOR_SCALE for mid, v in fused.items()}
+
+
 def score_rows(rows, query, now=None, regions=None, min_retention=None):
     """给候选记忆打分并按分排序。"""
     now = time.time() if now is None else now
     mr = config.get("min_retention", 0.06) if min_retention is None else min_retention
-    q = tokenize(query)
     regions = set(regions or ())
+    rel_map = hybrid_relevance(rows, query, now=now)
+
     scored = []
     for r in rows:
         m = dict(r)
-        rel = _relevance(m, q)
+        rel = rel_map.get(m["id"], 0.0)
         if rel <= 0:
             continue
         score, ret = forgetting.recall_score(m, rel, now)
@@ -143,6 +211,7 @@ def search(store, query, limit=6, budget_tokens=320, min_retention=None,
         "regions": sorted(set(regions or ())),
         "region_hits": sum(1 for m in picked if m.get("region_hit")),
         "fallback": used_fallback,
+        "vector": vector.get_embedder().enabled,
     }
     if picked and not dry_run:
         store.reinforce([m["id"] for m in picked], now)

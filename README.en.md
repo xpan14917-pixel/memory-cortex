@@ -74,6 +74,16 @@ tests/          33 unittest cases
 docs/           architecture & memory model
 ```
 
+## Hybrid recall (optional, off by default)
+
+Keyword-only recall cannot handle paraphrases. There is a pluggable vector channel
+(`hash` for zero-dependency plumbing, `ollama` for local semantic embeddings,
+`openai` for any compatible `/embeddings` endpoint), fused with keyword ranks via
+**RRF** and gated by `vector_weight` (0 = keyword only, 1 = vector only).
+
+Honest status: the `hash` provider does not improve Recall@3 on our 30-query set —
+real gains need a semantic embedding model.
+
 ## Status
 
 Early but working daily. Known gaps: keyword-only recall (no embeddings yet),

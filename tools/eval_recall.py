@@ -18,7 +18,7 @@ HERE = pathlib.Path(__file__).resolve()
 REPO = HERE.parents[1]
 sys.path.insert(0, str(REPO))
 
-from memory_brain import brainmap, config, forgetting          # noqa: E402
+from memory_brain import brainmap, config, forgetting, vector  # noqa: E402
 from memory_brain.store import Store                           # noqa: E402
 from memory_brain.text import tokenize                         # noqa: E402
 
@@ -115,6 +115,9 @@ def evaluate(store, items, ranker):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--db", default=None, help="用自己的库（只读副本）")
+    ap.add_argument("--vector", nargs="?", const="hash", default=None,
+                    choices=["hash", "ollama", "openai"],
+                    help="开启向量召回（默认 hash，零依赖；ollama 需本地服务）")
     args = ap.parse_args()
 
     data = json.loads((REPO / "examples" / "eval_set.json").read_text(encoding="utf-8"))
@@ -138,6 +141,16 @@ def main():
     if not items:
         print("没有可评测的查询（库里找不到 target）")
         return 1
+
+    if args.vector:
+        config.configure({"vector_enabled": True, "vector_provider": args.vector})
+        emb = vector.build({"vector_enabled": True, "vector_provider": args.vector})
+        if not emb.enabled:
+            print("!! 向量 provider 不可用：", args.vector)
+            return 1
+        vector.set_embedder(emb)
+        n = store.backfill_embeddings()
+        print("向量 provider: %s，已为 %d 条记忆生成向量" % (emb.name, n))
 
     base = evaluate(store, items, baseline_rank)
     ours = evaluate(store, items, ours_rank)

@@ -61,6 +61,21 @@ R < 0.05 且 hits == 0 且 库龄 > 90 天 且 kind ∉ {promise, date}  → arc
 | `brainmap_enabled` | true | 是否注入分区摘要 |
 | `brainmap_budget_tokens` | 60 | 分区摘要的预算 |
 
+
+## 混合召回（可选）
+
+默认关闭。开启后：
+
+1. 关键词通道：`_relevance` 打分并排名
+2. 向量通道：余弦相似度排名（需要每条记忆有 `embedding`）
+3. **RRF 融合**：`score = (1-w)/(k+rank_kw) + w/(k+rank_vec)`，`k` 默认 60，`w` = `vector_weight`
+4. 归一化到 Top1 = 2.0（与"关键词命中一次"同量级），再进入遗忘曲线与预算逻辑
+
+RRF 只吃排名，不吃原始分数，避免两路量纲不同互相压制。
+任一路缺失（老数据没向量 / provider 挂掉）都会自动退回关键词，不会让召回归零。
+
+向量写入在 `add_memory` 时完成；老库用 `store.backfill_embeddings()` 补。
+
 ## 为什么这样设计
 
 - **不做硬过滤**：分区靠关键词猜，猜错时硬过滤会直接漏掉正确记忆；加分错了只是排序偏。
