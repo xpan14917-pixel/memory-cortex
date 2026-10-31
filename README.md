@@ -130,7 +130,7 @@ docs/              架构说明、记忆模型说明
            取前 3 条全文、之后截断，总预算 320 tok
            选中的记忆：hits+1、last_used=now、S×1.25（复习变平）
 
-每天一次 → R<0.05 且 hits=0 且库龄>90 天 → archived=1（不进 prompt，不删）
+每天一次 → R<0.05 且 90 天没被用过 → archived=1（不进 prompt，不删）
 ```
 
 | 类型 | S0（天） | 说明 |
@@ -163,7 +163,7 @@ ollama pull nomic-embed-text
 ```
 
 两路分数用 **RRF（Reciprocal Rank Fusion）** 融合：只看排名，不混用量纲。
-`vector_weight` 控制向量通道的权重（0 = 纯关键词，1 = 纯向量）。
+`vector_weight` 控制向量通道的权重（0 = 纯关键词，1 = 纯向量），`vector_min_sim` 是相似度下限（默认 0.3）。
 
 **现状说明（实测，不吹）**：`hash` provider 只捕捉字面相近，
 在 30 条评测集上 Recall@3 没有提升（0.733 → 0.733），

@@ -93,12 +93,17 @@ def is_pinned(mem):
 
 
 def should_archive(mem, now=None, min_retention=None, min_days=None):
+    """该不该归档。
+
+    判定看「多久没被用过」而不是「有没有被用过」：
+    hits 只负责把稳定度变大，不能当成免死金牌 ——
+    否则一条两年前偶然被想起过的记忆会永远归档不掉。
+    """
     if is_pinned(mem):
         return False
-    if int(_f(mem.get("hits"), 0)) > 0:
-        return False
     md = _f(config.get("archive_min_days"), 90) if min_days is None else _f(min_days, 90)
-    if days_since(mem.get("ts"), now) < md:
+    touched = mem.get("last_used") or mem.get("ts")
+    if days_since(touched, now) < md:
         return False
     mr = (_f(config.get("archive_min_retention"), 0.05)
           if min_retention is None else _f(min_retention, 0.05))
@@ -106,8 +111,14 @@ def should_archive(mem, now=None, min_retention=None, min_days=None):
 
 
 def estimate_tokens(text):
-    """粗估 token：中文约 1 token / 1.6 字，向上取整。"""
-    return max(1, int(round(len(text or "") / 1.6)))
+    """粗估 token：中文约 1 token / 1.6 字，英文/数字约 1 token / 4 字符。"""
+    text = text or ""
+    cjk = 0
+    for ch in text:
+        if "\u4e00" <= ch <= "\u9fff" or "\u3000" <= ch <= "\u303f":
+            cjk += 1
+    other = len(text) - cjk
+    return max(1, int(round(cjk / 1.6 + other / 4.0)))
 
 
 def describe(mem, now=None):

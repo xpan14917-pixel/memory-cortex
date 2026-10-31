@@ -41,7 +41,7 @@ score = 相关度 × R^γ × weight                      # γ 默认 0.9
 每天第一次反思后运行一次：
 
 ```
-R < 0.05 且 hits == 0 且 库龄 > 90 天 且 kind ∉ {promise, date}  → archived=1
+R < 0.05 且距上次被用 > 90 天 且 kind ∉ {promise, date}  → archived=1
 ```
 
 归档只是不进 prompt，数据仍在，可以 `#遗忘` 里看到，也可以手动改回 `archived=0`。
@@ -70,6 +70,7 @@ R < 0.05 且 hits == 0 且 库龄 > 90 天 且 kind ∉ {promise, date}  → arc
 2. 向量通道：余弦相似度排名（需要每条记忆有 `embedding`）
 3. **RRF 融合**：`score = (1-w)/(k+rank_kw) + w/(k+rank_vec)`，`k` 默认 60，`w` = `vector_weight`
 4. 归一化到 Top1 = 2.0（与"关键词命中一次"同量级），再进入遗忘曲线与预算逻辑
+5. `vector_min_sim`（默认 0.3）以下的相似度不进向量通道，避免噪声混入
 
 RRF 只吃排名，不吃原始分数，避免两路量纲不同互相压制。
 任一路缺失（老数据没向量 / provider 挂掉）都会自动退回关键词，不会让召回归零。

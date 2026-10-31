@@ -3,6 +3,7 @@
 设计：每个线程一个连接（sqlite3 连接不跨线程共享），WAL 模式。
 """
 import json
+import logging
 import pathlib
 import sqlite3
 import threading
@@ -11,6 +12,8 @@ import time
 from . import brainmap
 from . import forgetting
 from .text import tokenize as _tokenize
+
+_log = logging.getLogger("memory_brain")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS messages(
@@ -239,7 +242,8 @@ class Store:
             if not vecs or not vecs[0]:
                 return None, None
             return vector.pack(vecs[0]), getattr(emb, "name", "")
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
+            _log.warning("embedding 失败（跳过）：%s", e)
             return None, None
 
     def add_memory(self, kind, content, keywords=None, weight=1.0, source=None):

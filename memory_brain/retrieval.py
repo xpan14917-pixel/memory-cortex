@@ -16,6 +16,7 @@ REGION_BONUS = 0.6
 MIN_SCORE = 0.25
 FULL_ROWS = 3
 CANDIDATE_LIMIT = 400
+RECENT_LIMIT = 200
 SHORT_CHARS = 14
 VECTOR_SCALE = 2.0
 
@@ -64,6 +65,7 @@ def hybrid_relevance(rows, query, now=None):
     if not qvec:
         return kw
 
+    min_sim = float(config.get("vector_min_sim", 0.3) or 0.0)
     sims = {}
     for r in rows:
         m = dict(r)
@@ -71,7 +73,7 @@ def hybrid_relevance(rows, query, now=None):
         if not mv:
             continue
         sim = vector.cosine(qvec, mv)
-        if sim > 0.0:
+        if sim >= min_sim:
             sims[m["id"]] = sim
     if not sims:
         return kw
@@ -170,7 +172,10 @@ def fallback_rows(store, now=None, top=None):
 
 
 def pick_budget(scored, limit=6, budget_tokens=320):
-    """按预算取前若干条；返回 (picked, used_tokens)。"""
+    """按预算取前若干条；返回 (picked, used_tokens)。
+
+    第一条也要守预算：单条超长的记忆会被截断，而不是挤掉后面所有内容。
+    """
     picked, used = [], 0
     for i, m in enumerate(scored):
         if len(picked) >= limit:
@@ -178,23 +183,51 @@ def pick_budget(scored, limit=6, budget_tokens=320):
         tier = "full" if (i < FULL_ROWS and not m.get("fallback")) else "short"
         body = (m.get("content") or "") if tier == "full" else (m.get("content") or "")[:SHORT_CHARS]
         cost = forgetting.estimate_tokens(body) + 6   # 类型标签与分隔
-        if picked and used + cost > budget_tokens:
-            break
+        if used + cost > budget_tokens:
+            if picked:
+                break
+            # 第一条就超预算：按剩余预算折算成字数硬截断
+            room = max(1, int((budget_tokens - 6) * 1.6))
+            if room < 1:
+                break
+            body = body[:room]
+            cost = forgetting.estimate_tokens(body) + 6
         m["tier"] = tier
+        m["content_shown"] = body
         picked.append(m)
         used += cost
     return picked, used
 
 
+def _candidates(store):
+    """候选池 = 高权重池 ∪ 最新池。
+
+    只按权重取会漏掉"低权重但很新且精确命中"的记忆，所以补一条按时间取的，
+    两个池按 id 去重合并。
+    """
+    sql = ("SELECT * FROM memories WHERE COALESCE(archived,0)=0 "
+           "AND superseded_by IS NULL ")
+    by_weight = store.conn().execute(
+        sql + "ORDER BY weight DESC, ts DESC LIMIT ?", (CANDIDATE_LIMIT,)).fetchall()
+    by_recent = store.conn().execute(
+        sql + "ORDER BY ts DESC LIMIT ?", (RECENT_LIMIT,)).fetchall()
+    seen, merged = set(), []
+    for r in list(by_weight) + list(by_recent):
+        if r["id"] in seen:
+            continue
+        seen.add(r["id"])
+        merged.append(r)
+    return merged
+
+
 def search(store, query, limit=6, budget_tokens=320, min_retention=None,
            now=None, dry_run=False, regions=None):
-    """从 store 取候选，打分、去重、截预算、复习，并把统计写回 store.last_recall。"""
+    """从 store 取候选，打分、去重、截预算、复习。
+
+    非 dry_run 时把统计写回 store.last_recall（复习也会落库）。
+    """
     now = time.time() if now is None else now
-    rows = store.conn().execute(
-        "SELECT * FROM memories WHERE COALESCE(archived,0)=0 "
-        "AND superseded_by IS NULL "
-        "ORDER BY weight DESC, ts DESC LIMIT ?", (CANDIDATE_LIMIT,)
-    ).fetchall()
+    rows = _candidates(store)
     scored = dedupe(score_rows(rows, query, now=now, regions=regions,
                                min_retention=min_retention))
     used_fallback = False
@@ -203,16 +236,17 @@ def search(store, query, limit=6, budget_tokens=320, min_retention=None,
         used_fallback = bool(scored)
 
     picked, used = pick_budget(scored, limit=limit, budget_tokens=budget_tokens)
-    store.last_recall = {
-        "picked": len(picked),
-        "candidates": len(scored),
-        "tokens": used,
-        "budget": budget_tokens,
-        "regions": sorted(set(regions or ())),
-        "region_hits": sum(1 for m in picked if m.get("region_hit")),
-        "fallback": used_fallback,
-        "vector": vector.get_embedder().enabled,
-    }
-    if picked and not dry_run:
-        store.reinforce([m["id"] for m in picked], now)
+    if not dry_run:
+        store.last_recall = {
+            "picked": len(picked),
+            "candidates": len(scored),
+            "tokens": used,
+            "budget": budget_tokens,
+            "regions": sorted(set(regions or ())),
+            "region_hits": sum(1 for m in picked if m.get("region_hit")),
+            "fallback": used_fallback,
+            "vector": vector.get_embedder().enabled,
+        }
+        if picked:
+            store.reinforce([m["id"] for m in picked], now)
     return picked

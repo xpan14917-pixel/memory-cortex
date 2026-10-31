@@ -71,10 +71,18 @@ class TestArchive(unittest.TestCase):
         m = mem(kind="event", ts=now - 10 * DAY, stability=1, hits=0)
         self.assertFalse(forgetting.should_archive(m, now))
 
-    def test_recalled_not_archived(self):
+    def test_recently_recalled_not_archived(self):
         now = 1_000_000
-        m = mem(kind="event", ts=now - 300 * DAY, stability=1, hits=2)
+        m = mem(kind="event", ts=now - 300 * DAY, stability=5, hits=2,
+                last_used=now - 10 * DAY)
         self.assertFalse(forgetting.should_archive(m, now))
+
+    def test_recalled_long_ago_is_archived(self):
+        """hits 只放大稳定度，不能当免死金牌。"""
+        now = 1_000_000
+        m = mem(kind="event", ts=now - 400 * DAY, stability=5, hits=2,
+                last_used=now - 300 * DAY)
+        self.assertTrue(forgetting.should_archive(m, now))
 
 
 class TestTokens(unittest.TestCase):

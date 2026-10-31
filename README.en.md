@@ -58,7 +58,7 @@ score = relevance × R^0.9 × weight                 # +0.6 if region matches
 
 Each recall increments `hits`, refreshes `last_used` and stretches `S` by 1.25 —
 the spacing effect. A nightly pass archives (never deletes) memories with
-`R < 0.05`, `hits == 0`, older than 90 days. Promises and dates are pinned forever.
+`R < 0.05` and untouched for 90 days. Promises and dates are pinned forever.
 
 Five semantic regions keep recall explainable: daily life, emotion, relationship,
 cognition, promises.

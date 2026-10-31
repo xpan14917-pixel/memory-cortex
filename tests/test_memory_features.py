@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """兜底召回 / 去重 / 更正 / 恢复 / 参数覆盖。"""
 import pathlib
 import sys
@@ -37,10 +37,14 @@ class FeatureCase(unittest.TestCase):
 
     # ---- 兜底召回 ----
     def test_fallback_when_no_keyword_hit(self):
-        got = self.store.search_memories("在吗", dry_run=True)
+        got = self.store.search_memories("在吗")
         self.assertTrue(got, "没有关键词命中时应兜底")
         self.assertTrue(self.store.last_recall["fallback"])
         self.assertTrue(all(m["tier"] == "short" for m in got))
+
+    def test_dry_run_has_no_side_effects(self):
+        self.store.search_memories("杭州", dry_run=True)
+        self.assertFalse(hasattr(self.store, "last_recall"))
 
     def test_fallback_can_be_disabled(self):
         config.configure({"fallback_top": 0})

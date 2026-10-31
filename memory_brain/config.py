@@ -42,6 +42,7 @@ DEFAULTS = {
     "vector_base_url": "",         # 例如 http://127.0.0.1:11434
     "vector_api_key_env": "OPENAI_API_KEY",
     "vector_dim": 256,             # hash provider 的维度
+    "vector_min_sim": 0.3,         # 向量相似度下限，低于此值不参与融合
 }
 
 _state = copy.deepcopy(DEFAULTS)
